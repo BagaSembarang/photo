@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<title>Photobox</title>
+<style>
+:root{--bg:#efeee9;--ink:#141414;--line:#d6d4cc;--accent:#d8ff3d;--card:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#161616;--ink:#f2f2f2;--line:#333;--card:#222}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 "Helvetica Neue",Arial,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:520px;margin:0 auto;padding:16px}
+h1{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:8px 0 4px}
+p.sub{margin:0 0 16px;opacity:.7}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+h2{font-size:15px;font-weight:700;margin:0 0 10px}
+button,label.btn{font:inherit;font-weight:700;border:0;border-radius:10px;padding:12px 14px;background:var(--ink);color:var(--bg);cursor:pointer;display:inline-block;text-align:center}
+button.alt,label.btn.alt{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
+button.go{background:var(--accent);color:#111}
+button:disabled{opacity:.4}
+button:focus-visible,label.btn:focus-within,input:focus-visible{outline:3px solid #6a8cff;outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 auto}
+.cam{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:528/440;display:none}
+.cam.on{display:block}
+.cam video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.count{position:absolute;inset:0;display:grid;place-items:center;font-size:120px;font-weight:800;color:#fff;text-shadow:0 2px 20px rgba(0,0,0,.6)}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .35s}
+.flash.on{opacity:.9;transition:none}
+.swatches{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sw{width:36px;height:36px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+.sw[aria-pressed=true]{outline:3px solid var(--ink);outline-offset:2px}
+input[type=color]{width:36px;height:36px;border:0;padding:0;background:none}
+input[type=text]{font:inherit;width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);margin-bottom:10px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opts label{font-size:14px;display:block;margin-bottom:4px;opacity:.8}
+select{font:inherit;width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+.preview{display:flex;justify-content:center}
+#strip{width:min(100%,300px);height:auto;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.hint{font-size:13px;opacity:.65;margin:8px 0 0}
+.msg{color:#c0392b;font-size:14px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>Photobox</h1>
+  <p class="sub">Foto 4 pose, jadi satu strip. Langsung unduh dari HP.</p>
+
+  <section>
+    <h2>1. Ambil foto</h2>
+    <div class="cam" id="cam">
+      <video id="video" playsinline muted autoplay></video>
+      <div class="count" id="count"></div>
+      <div class="flash" id="flash"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnCam" class="alt">Nyalakan kamera</button>
+      <button id="btnShoot" class="go" disabled>Mulai 4 foto</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="btn alt">Pilih dari galeri
+        <input type="file" id="file" accept="image/*" multiple hidden>
+      </label>
+    </div>
+    <p class="msg" id="msg" role="alert"></p>
+    <p class="hint">Kamera butuh izin dan koneksi HTTPS (otomatis di Vercel/GitHub Pages). Pilih sampai 4 foto dari galeri.</p>
+  </section>
+
+  <section>
+    <h2>2. Atur tampilan</h2>
+    <div class="swatches" id="swatches" role="group" aria-label="Warna frame"></div>
+    <div class="opts" style="margin-top:12px">
+      <div><label for="title">Judul</label><input type="text" id="title" value="PHOTOBOX" maxlength="18" style="margin:0"></div>
+      <div><label for="date">Teks bawah</label><input type="text" id="date" maxlength="24" style="margin:0"></div>
+      <div><label for="filter">Filter</label>
+        <select id="filter"><option value="none">Normal</option><option value="bw">Hitam putih</option><option value="warm">Hangat</option><option value="cool">Dingin</option></select>
+      </div>
+      <div><label for="side">Teks samping</label>
+        <select id="side"><option value="TAKE A PHOTOBOX">TAKE A PHOTOBOX</option><option value="">Tanpa teks</option></select>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Hasil</h2>
+    <div class="preview"><canvas id="strip" aria-label="Pratinjau strip foto"></canvas></div>
+    <div class="row" id="retake" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnDl" class="go">Unduh PNG</button>
+      <button id="btnShare" class="alt">Bagikan</button>
+      <button id="btnClear" class="alt">Hapus semua</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  // ---------- ukuran strip ----------
+  var W=600, PAD=36, PW=W-PAD*2, PH=440, GAP=20, HEAD=110, FOOT=84, N=4;
+  var H=HEAD+N*PH+(N-1)*GAP+FOOT;
+
+  var $=function(id){return document.getElementById(id)};
+  var strip=$('strip'), ctx=strip.getContext('2d');
+  strip.width=W; strip.height=H;
+
+  var photos=[null,null,null,null];       // canvas hasil crop per slot
+  var frameColor='#000000';
+  var stream=null, busy=false;
+  $('date').value=new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});
+
+  // ---------- warna frame ----------
+  var presets=['#000000','#ffffff','#f6c9d6','#bcd7f5','#cfe8c8','#ffe29a'];
+  var sw=$('swatches');
+  presets.forEach(function(c){
+    var b=document.createElement('button');
+    b.className='sw';b.style.background=c;b.setAttribute('aria-label','Warna '+c);
+    b.setAttribute('aria-pressed',c===frameColor);
+    b.onclick=function(){setColor(c)};
+    sw.appendChild(b);
+  });
+  var picker=document.createElement('input');
+  picker.type='color';picker.value='#000000';picker.setAttribute('aria-label','Warna lain');
+  picker.oninput=function(){setColor(picker.value)};
+  sw.appendChild(picker);
+  function setColor(c){
+    frameColor=c;
+    [].forEach.call(sw.querySelectorAll('.sw'),function(b){b.setAttribute('aria-pressed',b.style.background&&rgb2hex(b.style.background)===c.toLowerCase())});
+    draw();
+  }
+  function rgb2hex(s){var m=s.match(/\d+/g);if(!m)return s;return '#'+m.slice(0,3).map(function(n){return ('0'+(+n).toString(16)).slice(-2)}).join('')}
+  function isDark(hex){
+    var n=parseInt(hex.slice(1),16),r=n>>16,g=(n>>8)&255,b=n&255;
+    return (0.299*r+0.587*g+0.114*b)<140;
+  }
+
+  // ---------- crop & filter ----------
+  function cropToSlot(src,sw_,sh_,mirror){
+    var c=document.createElement('canvas');c.width=PW;c.height=PH;
+    var x=c.getContext('2d');
+    var s=Math.max(PW/sw_,PH/sh_), dw=sw_*s, dh=sh_*s;
+    if(mirror){x.translate(PW,0);x.scale(-1,1)}
+    x.drawImage(src,(PW-dw)/2,(PH-dh)/2,dw,dh);
+    return c;
+  }
+  function applyFilter(src,type){
+    if(type==='none')return src;
+    var c=document.createElement('canvas');c.width=src.width;c.height=src.height;
+    var x=c.getContext('2d');x.drawImage(src,0,0);
+    var d=x.getImageData(0,0,c.width,c.height),p=d.data;
+    for(var i=0;i<p.length;i+=4){
+      var r=p[i],g=p[i+1],b=p[i+2];
+      if(type==='bw'){var y=0.299*r+0.587*g+0.114*b;p[i]=p[i+1]=p[i+2]=y}
+      else if(type==='warm'){p[i]=Math.min(255,r*1.08+6);p[i+2]=b*0.92}
+      else if(type==='cool'){p[i]=r*0.93;p[i+2]=Math.min(255,b*1.08+6)}
+    }
+    x.putImageData(d,0,0);return c;
+  }
+
+  // ---------- gambar strip ----------
+  function draw(){
+    var dark=isDark(frameColor), ink=dark?'#ffffff':'#111111';
+    ctx.fillStyle=frameColor;ctx.fillRect(0,0,W,H);
+
+    // judul
+    ctx.fillStyle=ink;ctx.textBaseline='middle';ctx.textAlign='left';
+    ctx.font='800 46px "Helvetica Neue",Arial,sans-serif';
+    ctx.fillText($('title').value||'',PAD,HEAD/2+8);
+
+    var f=$('filter').value;
+    for(var i=0;i<N;i++){
+      var y=HEAD+i*(PH+GAP);
+      if(photos[i]){ctx.drawImage(applyFilter(photos[i],f),PAD,y)}
+      else{
+        ctx.fillStyle=dark?'#2a2a2a':'rgba(0,0,0,.08)';ctx.fillRect(PAD,y,PW,PH);
+        ctx.fillStyle=dark?'#777':'#999';ctx.textAlign='center';
+        ctx.font='700 64px Arial';ctx.fillText(String(i+1),PAD+PW/2,y+PH/2);
+        ctx.textAlign='left';
+      }
+    }
+
+    // teks bawah
+    ctx.fillStyle=ink;ctx.textAlign='left';
+    ctx.font='700 24px "Helvetica Neue",Arial,sans-serif';
+    ctx.fillText($('date').value||'',PAD,H-FOOT/2+4);
+
+    // teks samping (vertikal, seperti strip film)
+    var side=$('side').value;
+    if(side){
+      ctx.save();ctx.font='700 15px "Helvetica Neue",Arial,sans-serif';ctx.fillStyle=ink;
+      ctx.textAlign='center';
+      for(var k=0;k<N;k++){
+        var cy=HEAD+k*(PH+GAP)+PH/2;
+        ctx.save();ctx.translate(W-PAD/2+2,cy);ctx.rotate(-Math.PI/2);ctx.fillText(side,0,0);ctx.restore();
+      }
+      ctx.restore();
+    }
+  }
+
+  // ---------- tombol ulang per slot ----------
+  var rt=$('retake');
+  for(var i=0;i<N;i++){(function(i){
+    var b=document.createElement('button');b.className='alt';b.textContent='Ulang '+(i+1);
+    b.onclick=function(){retake(i)};rt.appendChild(b);
+  })(i)}
+
+  // ---------- kamera ----------
+  function msg(t){$('msg').textContent=t||''}
+  $('btnCam').onclick=async function(){
+    msg('');
+    if(stream){stopCam();return}
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:960}},audio:false});
+      $('video').srcObject=stream;$('cam').classList.add('on');
+      $('btnShoot').disabled=false;$('btnCam').textContent='Matikan kamera';
+    }catch(e){msg('Kamera tidak bisa dibuka. Izinkan akses kamera di browser, atau pilih foto dari galeri.')}
+  };
+  function stopCam(){
+    if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}
+    $('cam').classList.remove('on');$('btnShoot').disabled=true;$('btnCam').textContent='Nyalakan kamera';
+  }
+  function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+  async function countdown(){
+    for(var n=3;n>=1;n--){$('count').textContent=n;await sleep(900)}
+    $('count').textContent='';
+  }
+  function snap(slot){
+    var v=$('video');
+    photos[slot]=cropToSlot(v,v.videoWidth,v.videoHeight,true);
+    var fl=$('flash');fl.classList.add('on');setTimeout(function(){fl.classList.remove('on')},60);
+    draw();
+  }
+  $('btnShoot').onclick=async function(){
+    if(busy||!stream)return;busy=true;$('btnShoot').disabled=true;
+    for(var i=0;i<N;i++){await countdown();snap(i);await sleep(500)}
+    busy=false;$('btnShoot').disabled=false;
+  };
+  async function retake(i){
+    if(busy)return;
+    if(stream){busy=true;await countdown();snap(i);busy=false}
+    else{
+      var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+      inp.onchange=function(){if(inp.files[0])loadFile(inp.files[0]).then(function(c){photos[i]=c;draw()})};
+      inp.click();
+    }
+  }
+
+  // ---------- galeri ----------
+  function loadFile(file){
+    return new Promise(function(res,rej){
+      var url=URL.createObjectURL(file),im=new Image();
+      im.onload=function(){var c=cropToSlot(im,im.naturalWidth,im.naturalHeight,false);URL.revokeObjectURL(url);res(c)};
+      im.onerror=rej;im.src=url;
+    });
+  }
+  $('file').onchange=async function(e){
+    var files=[].slice.call(e.target.files,0,N);
+    var empty=photos.map(function(p,i){return p?-1:i}).filter(function(i){return i>=0});
+    var slots=files.length>=N||empty.length<files.length?[0,1,2,3]:empty;
+    for(var i=0;i<files.length;i++){photos[slots[i]]=await loadFile(files[i])}
+    e.target.value='';draw();
+  };
+
+  // ---------- output ----------
+  function toBlob(){return new Promise(function(r){strip.toBlob(r,'image/png')})}
+  $('btnDl').onclick=async function(){
+    var b=await toBlob(),a=document.createElement('a');
+    a.href=URL.createObjectURL(b);a.download='photobox-'+Date.now()+'.png';a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href)},2000);
+  };
+  $('btnShare').onclick=async function(){
+    var b=await toBlob(),f=new File([b],'photobox.png',{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f]})}catch(e){}}
+    else msg('Fitur bagikan tidak didukung di browser ini. Gunakan Unduh PNG.');
+  };
+  $('btnClear').onclick=function(){photos=[null,null,null,null];draw()};
+
+  ['title','date'].forEach(function(id){$(id).oninput=draw});
+  ['filter','side'].forEach(function(id){$(id).onchange=draw});
+
+  draw();
+})();
+</script>
+</body>
+</html>
